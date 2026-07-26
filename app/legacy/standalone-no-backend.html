@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Equity Analysis Report Generator</title>
+<style id="app-style">
+/* ============================================================
+   Equity Analysis Report — corporate report styling
+   ============================================================ */
+:root{
+  --navy:#0d2137;
+  --navy-2:#163555;
+  --navy-3:#1f4670;
+  --gold:#b3862c;
+  --gold-soft:#f0e3c6;
+  --pos:#146c43;
+  --pos-bg:#e6f4ec;
+  --neg:#a52a2a;
+  --neg-bg:#fbeaea;
+  --neu:#b56a00;
+  --neu-bg:#fdf1de;
+  --bg:#eef1f5;
+  --card:#ffffff;
+  --line:#dde3ea;
+  --line-2:#c7d0da;
+  --text:#16212e;
+  --muted:#5d6b7c;
+  --font-head:Georgia,"Times New Roman",Times,serif;
+  --font-body:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --shadow:0 1px 2px rgba(16,32,50,.06),0 6px 20px rgba(16,32,50,.07);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--font-body);
+  font-size:15px;
+  line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ---------- Masthead ---------- */
+.masthead{
+  background:linear-gradient(135deg,var(--navy) 0%,var(--navy-3) 100%);
+  color:#fff;
+  border-bottom:3px solid var(--gold);
+}
+.masthead-inner{
+  max-width:1120px;margin:0 auto;padding:22px 28px;
+  display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;
+}
+.brand{display:flex;align-items:center;gap:14px}
+.brand-mark{
+  width:42px;height:42px;flex:0 0 42px;border-radius:6px;
+  background:var(--gold);color:var(--navy);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-head);font-weight:700;font-size:20px;letter-spacing:-.5px;
+}
+.brand-text h1{
+  margin:0;font-family:var(--font-head);font-size:20px;font-weight:700;letter-spacing:.2px;
+}
+.brand-text p{margin:2px 0 0;font-size:12.5px;color:#b9c9da;letter-spacing:.9px;text-transform:uppercase}
+.masthead-meta{font-size:12.5px;color:#c3d2e0;text-align:right;line-height:1.5}
+.masthead-meta strong{color:#fff;display:block;font-size:13.5px;letter-spacing:.4px}
+
+/* ---------- Layout ---------- */
+main{max-width:1120px;margin:0 auto;padding:26px 28px 60px}
+.card{
+  background:var(--card);border:1px solid var(--line);border-radius:10px;
+  box-shadow:var(--shadow);
+}
+
+/* ---------- Console (input area) ---------- */
+.console{padding:22px 24px;margin-bottom:24px}
+.console-title{
+  font-family:var(--font-head);font-size:16px;margin:0 0 4px;color:var(--navy);
+}
+.console-sub{margin:0 0 18px;font-size:13px;color:var(--muted)}
+.search-row{display:flex;gap:10px;flex-wrap:wrap}
+.search-row .field{flex:1 1 340px;min-width:0}
+label.lbl{
+  display:block;font-size:11.5px;font-weight:700;letter-spacing:.7px;
+  text-transform:uppercase;color:var(--muted);margin:0 0 6px;
+}
+input[type=text],input[type=password],select{
+  width:100%;padding:11px 13px;font-size:15px;font-family:var(--font-body);
+  border:1px solid var(--line-2);border-radius:7px;background:#fff;color:var(--text);
+  transition:border-color .15s,box-shadow .15s;
+}
+input:focus,select:focus{
+  outline:none;border-color:var(--navy-3);box-shadow:0 0 0 3px rgba(31,70,112,.13);
+}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  padding:11px 22px;font-size:14.5px;font-weight:600;font-family:var(--font-body);
+  border-radius:7px;border:1px solid transparent;cursor:pointer;white-space:nowrap;
+  transition:background .15s,border-color .15s,color .15s;
+}
+.btn-primary{background:var(--navy);color:#fff}
+.btn-primary:hover:not(:disabled){background:var(--navy-3)}
+.btn-primary:disabled{background:#94a3b3;cursor:not-allowed}
+.btn-ghost{background:#fff;color:var(--navy);border-color:var(--line-2)}
+.btn-ghost:hover{background:#f6f8fa;border-color:var(--navy-3)}
+.btn-sm{padding:7px 14px;font-size:13px}
+
+.settings-toggle{
+  margin-top:16px;background:none;border:none;padding:0;cursor:pointer;
+  font-size:13px;color:var(--navy-3);font-family:var(--font-body);font-weight:600;
+}
+.settings-toggle:hover{text-decoration:underline}
+.settings{
+  margin-top:16px;padding-top:18px;border-top:1px solid var(--line);
+  display:grid;grid-template-columns:2fr 1fr;gap:16px;
+}
+.settings[hidden]{display:none}
+.hint{font-size:12px;color:var(--muted);margin:6px 0 0;line-height:1.5}
+.hint a{color:var(--navy-3)}
+.chips{margin-top:14px;display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.chips .chips-lbl{font-size:11.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);font-weight:700}
+.chip{
+  padding:4px 11px;font-size:12.5px;border:1px solid var(--line-2);border-radius:20px;
+  background:#fff;cursor:pointer;color:var(--navy);font-family:var(--font-body);
+}
+.chip:hover{background:var(--navy);color:#fff;border-color:var(--navy)}
+
+/* ---------- Status ---------- */
+.status{padding:18px 24px;margin-bottom:24px;display:flex;align-items:center;gap:14px}
+.status[hidden]{display:none}
+.spinner{
+  width:22px;height:22px;flex:0 0 22px;border-radius:50%;
+  border:2.5px solid var(--line-2);border-top-color:var(--navy);
+  animation:spin .8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.status-text{font-size:14px}
+.status-text strong{display:block;color:var(--navy);font-size:14.5px}
+.status-text span{color:var(--muted);font-size:12.5px}
+.status.error{border-left:4px solid var(--neg);background:var(--neg-bg)}
+.status.error .status-text strong{color:var(--neg)}
+
+/* ---------- Report head ---------- */
+.report[hidden]{display:none}
+.report-head{
+  padding:26px 30px 22px;border-bottom:1px solid var(--line);
+  border-radius:10px 10px 0 0;background:#fff;
+}
+.report-head .eyebrow{
+  font-size:11.5px;letter-spacing:1.3px;text-transform:uppercase;
+  color:var(--gold);font-weight:700;margin:0 0 6px;
+}
+.report-head h2{
+  font-family:var(--font-head);font-size:29px;line-height:1.2;margin:0;color:var(--navy);
+}
+.report-head .sub{margin:8px 0 0;font-size:13.5px;color:var(--muted)}
+.report-head .sub b{color:var(--text);font-weight:600}
+.byline{
+  margin:14px 0 0;font-family:var(--font-head);font-style:italic;
+  font-size:14px;color:var(--muted);
+}
+
+/* ---------- Recommendation box ---------- */
+.rec-box{
+  margin:0 30px 4px;padding:20px 24px;border-radius:9px;
+  background:linear-gradient(135deg,var(--navy) 0%,var(--navy-3) 100%);
+  color:#fff;display:grid;grid-template-columns:repeat(4,1fr);gap:20px;
+  border-left:5px solid var(--gold);
+}
+.rec-cell .k{
+  font-size:11px;letter-spacing:1.1px;text-transform:uppercase;
+  color:#a9bed2;font-weight:700;margin:0 0 5px;
+}
+.rec-cell .v{
+  font-family:var(--font-head);font-size:23px;font-weight:700;line-height:1.15;margin:0;
+}
+.rec-cell .v.small{font-size:17px;font-weight:600;padding-top:4px}
+.rec-cell .note{font-size:12.5px;color:#bcd0e2;margin:3px 0 0}
+.rating-buy{color:#6ee7a8}
+.rating-sell{color:#ff9d9d}
+.rating-hold{color:#ffd58a}
+
+/* ---------- Tabs ---------- */
+.tabbar{
+  display:flex;gap:2px;padding:0 30px;background:#fff;
+  border-bottom:1px solid var(--line);overflow-x:auto;margin-top:20px;
+}
+.tabbar button{
+  flex:0 0 auto;padding:13px 17px;background:none;border:none;cursor:pointer;
+  font-family:var(--font-body);font-size:13.5px;font-weight:600;color:var(--muted);
+  border-bottom:3px solid transparent;margin-bottom:-1px;white-space:nowrap;
+  transition:color .15s,border-color .15s;
+}
+.tabbar button:hover{color:var(--navy)}
+.tabbar button[aria-selected=true]{color:var(--navy);border-bottom-color:var(--gold)}
+.tabbar button .num{
+  display:inline-block;min-width:18px;height:18px;line-height:18px;text-align:center;
+  border-radius:50%;background:var(--bg);color:var(--muted);
+  font-size:11px;margin-right:7px;font-weight:700;
+}
+.tabbar button[aria-selected=true] .num{background:var(--gold);color:#fff}
+
+.panels{background:#fff;border-radius:0 0 10px 10px;padding:6px 30px 34px}
+.panel[hidden]{display:none}
+
+/* ---------- Report content typography ---------- */
+.panel h3{
+  font-family:var(--font-head);font-size:21px;color:var(--navy);
+  margin:30px 0 10px;padding-bottom:8px;border-bottom:2px solid var(--line);
+}
+.panel h3:first-child{margin-top:22px}
+.panel h4{
+  font-family:var(--font-head);font-size:16.5px;color:var(--navy-2);margin:24px 0 8px;
+}
+.panel h5{
+  font-size:13.5px;text-transform:uppercase;letter-spacing:.7px;
+  color:var(--muted);margin:18px 0 6px;
+}
+.panel p{margin:0 0 12px}
+.panel ul,.panel ol{margin:0 0 14px;padding-left:22px}
+.panel li{margin-bottom:6px}
+.panel li::marker{color:var(--gold)}
+.panel strong,.panel b{color:var(--navy);font-weight:700}
+.panel em{color:var(--muted)}
+.panel u,.panel .figure{
+  text-decoration:none;background:var(--gold-soft);
+  padding:1px 5px;border-radius:3px;font-weight:600;color:#6b4f14;
+}
+
+/* ---------- Tables ---------- */
+.panel table{
+  width:100%;border-collapse:collapse;margin:14px 0 18px;font-size:13.5px;
+  border:1px solid var(--line);border-radius:7px;overflow:hidden;
+}
+.panel thead th{
+  background:var(--navy);color:#fff;text-align:left;padding:10px 13px;
+  font-size:11.5px;letter-spacing:.7px;text-transform:uppercase;font-weight:700;
+  white-space:nowrap;
+}
+.panel tbody td,.panel tbody th{
+  padding:10px 13px;border-top:1px solid var(--line);vertical-align:top;
+  font-variant-numeric:tabular-nums;
+}
+.panel tbody th{text-align:left;font-weight:600;color:var(--navy);background:#fafbfc}
+.panel tbody tr:nth-child(even) td{background:#fbfcfd}
+.panel tbody tr:hover td{background:#f3f7fb}
+.table-wrap{overflow-x:auto;margin:14px 0 18px}
+.table-wrap table{margin:0}
+
+/* ---------- Trend colour coding ---------- */
+.t-up,.t-down,.t-flat{
+  display:inline-block;padding:2px 9px;border-radius:20px;
+  font-size:12px;font-weight:700;line-height:1.5;white-space:nowrap;
+}
+.t-up{color:var(--pos);background:var(--pos-bg)}
+.t-down{color:var(--neg);background:var(--neg-bg)}
+.t-flat{color:var(--neu);background:var(--neu-bg)}
+
+/* ---------- Callouts ---------- */
+.callout{
+  border-left:4px solid var(--navy-3);background:#f5f8fb;
+  padding:13px 17px;border-radius:0 7px 7px 0;margin:14px 0 18px;
+}
+.callout p:last-child{margin-bottom:0}
+.callout.takeaway{border-left-color:var(--gold);background:#fdfaf3}
+.callout.risk{border-left-color:var(--neg);background:var(--neg-bg)}
+.callout .callout-label{
+  font-size:11px;letter-spacing:1.1px;text-transform:uppercase;
+  font-weight:700;color:var(--muted);display:block;margin-bottom:4px;
+}
+.callout.takeaway .callout-label{color:var(--gold)}
+.callout.risk .callout-label{color:var(--neg)}
+
+/* ---------- Bar visualisation ---------- */
+.bars{margin:14px 0 18px}
+.bar-row{display:flex;align-items:center;gap:12px;margin-bottom:7px;font-size:13px}
+.bar-row .bar-lbl{flex:0 0 90px;color:var(--muted);font-weight:600}
+.bar-row .bar-track{flex:1;height:20px;background:var(--bg);border-radius:4px;overflow:hidden}
+.bar-row .bar-fill{height:100%;background:linear-gradient(90deg,var(--navy-3),var(--navy));border-radius:4px}
+.bar-row .bar-val{flex:0 0 84px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+
+/* ---------- Report actions ---------- */
+.report-actions{
+  display:flex;gap:10px;justify-content:flex-end;padding:16px 30px 0;flex-wrap:wrap;
+}
+
+/* ---------- Footer ---------- */
+.site-footer{
+  max-width:1120px;margin:0 auto;padding:0 28px 50px;
+}
+.disclaimer{
+  border-top:2px solid var(--line);padding-top:18px;
+  font-size:12px;color:var(--muted);line-height:1.65;
+}
+.disclaimer strong{color:var(--navy);display:block;margin-bottom:5px;font-size:12.5px;letter-spacing:.5px;text-transform:uppercase}
+
+/* ---------- Responsive ---------- */
+@media(max-width:860px){
+  .rec-box{grid-template-columns:repeat(2,1fr)}
+  .settings{grid-template-columns:1fr}
+  main{padding:20px 16px 40px}
+  .masthead-inner{padding:18px 16px}
+  .report-head,.tabbar,.panels{padding-left:18px;padding-right:18px}
+  .rec-box{margin-left:18px;margin-right:18px}
+  .report-actions{padding-left:18px;padding-right:18px}
+  .site-footer{padding-left:16px;padding-right:16px}
+}
+@media(max-width:520px){
+  .rec-box{grid-template-columns:1fr}
+  .report-head h2{font-size:23px}
+}
+
+/* ---------- Print / PDF ---------- */
+@media print{
+  body{background:#fff;font-size:11pt}
+  .console,.status,.report-actions,.tabbar,.settings-toggle{display:none !important}
+  .masthead{background:var(--navy) !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  main{max-width:none;padding:0}
+  .card{border:none;box-shadow:none}
+  .panel[hidden]{display:block !important}
+  .panel{page-break-before:always;break-before:page}
+  .panel:first-of-type{page-break-before:avoid;break-before:avoid}
+  .panel h3,.panel h4{page-break-after:avoid;break-after:avoid}
+  .panel table,.callout,.rec-box{page-break-inside:avoid;break-inside:avoid}
+  .rec-box,.panel thead th{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .site-footer{page-break-before:always}
+}
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <div class="brand">
+      <div class="brand-mark">EA</div>
+      <div class="brand-text">
+        <h1>Equity Analysis Report</h1>
+        <p>Fundamental Research &middot; Indian Markets</p>
+      </div>
+    </div>
+    <div class="masthead-meta">
+      <strong>By SEETHARAMAN</strong>
+      Qualitative &amp; quantitative equity research
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- ============ INPUT CONSOLE ============ -->
+  <section class="card console" id="console">
+    <h2 class="console-title">Analyse a stock</h2>
+    <p class="console-sub">Enter an Indian listed company name or NSE/BSE ticker to generate a full seven-section equity research report.</p>
+
+    <form class="search-row" id="form" autocomplete="off">
+      <div class="field">
+        <label class="lbl" for="stock">Stock name or ticker</label>
+        <input type="text" id="stock" placeholder="e.g. Tata Consultancy Services, HDFC Bank, INFY" required>
+      </div>
+      <div style="display:flex;align-items:flex-end">
+        <button type="submit" class="btn btn-primary" id="go">Generate Report</button>
+      </div>
+    </form>
+
+    <div class="chips">
+      <span class="chips-lbl">Try</span>
+      <button type="button" class="chip">Reliance Industries</button>
+      <button type="button" class="chip">Tata Consultancy Services</button>
+      <button type="button" class="chip">HDFC Bank</button>
+      <button type="button" class="chip">Infosys</button>
+      <button type="button" class="chip">ITC</button>
+      <button type="button" class="chip">Larsen &amp; Toubro</button>
+    </div>
+
+    <button type="button" class="settings-toggle" id="settingsToggle">&#9881; API settings</button>
+    <div class="settings" id="settings" hidden>
+      <div>
+        <label class="lbl" for="apikey">Anthropic API key</label>
+        <input type="password" id="apikey" placeholder="sk-ant-...">
+        <p class="hint">
+          Your key is stored only in this browser's <code>localStorage</code> and is sent directly from your
+          browser to <code>api.anthropic.com</code>. It is never sent anywhere else.
+          Get a key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>.
+        </p>
+      </div>
+      <div>
+        <label class="lbl" for="model">Model</label>
+        <select id="model">
+          <option value="claude-sonnet-5">Claude Sonnet 5 (balanced)</option>
+          <option value="claude-opus-4-8">Claude Opus 4.8 (deepest analysis)</option>
+          <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (fastest)</option>
+        </select>
+        <p class="hint">Opus produces the most thorough analysis; Sonnet is a good default.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ STATUS ============ -->
+  <section class="card status" id="status" hidden>
+    <div class="spinner" id="spinner"></div>
+    <div class="status-text">
+      <strong id="statusTitle">Working…</strong>
+      <span id="statusDetail"></span>
+    </div>
+  </section>
+
+  <!-- ============ REPORT ============ -->
+  <section class="card report" id="report" hidden>
+    <div class="report-head">
+      <p class="eyebrow" id="rEyebrow">Equity Research</p>
+      <h2 id="rTitle">—</h2>
+      <p class="sub" id="rSub"></p>
+      <p class="byline">By SEETHARAMAN</p>
+    </div>
+
+    <div class="rec-box" id="recBox">
+      <div class="rec-cell">
+        <p class="k">Recommendation</p>
+        <p class="v" id="recRating">—</p>
+      </div>
+      <div class="rec-cell">
+        <p class="k">Target Price</p>
+        <p class="v" id="recTarget">—</p>
+        <p class="note" id="recChange"></p>
+      </div>
+      <div class="rec-cell">
+        <p class="k">Current Price</p>
+        <p class="v" id="recCurrent">—</p>
+      </div>
+      <div class="rec-cell">
+        <p class="k">Investment Horizon</p>
+        <p class="v small" id="recHorizon">—</p>
+      </div>
+    </div>
+
+    <div class="report-actions">
+      <button type="button" class="btn btn-ghost btn-sm" id="btnPrint">Print / Save as PDF</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="btnDownload">Download HTML</button>
+    </div>
+
+    <nav class="tabbar" id="tabbar" role="tablist"></nav>
+    <div class="panels" id="panels"></div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="disclaimer">
+    <strong>Disclaimer</strong>
+    This report is generated by an AI language model for <b>educational and informational purposes only</b>. It does not
+    constitute investment advice, a recommendation, or an offer to buy or sell any security. Figures are produced by a
+    model and <b>may be inaccurate, incomplete, or out of date</b> — always verify all financial data independently against
+    Screener.in, company filings, exchange disclosures, and other primary sources before making any investment decision.
+    Past performance is not indicative of future results. Investing in equities involves risk, including loss of principal.
+    Consult a SEBI-registered investment adviser before acting on any information contained here.
+  </div>
+</footer>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================================================
+   1. Constants — tabs and the analysis prompt
+   ============================================================ */
+
+var TABS = [
+  {id:"overview",     num:"1", label:"Company Overview"},
+  {id:"quantitative", num:"2", label:"Quantitative Analysis"},
+  {id:"qualitative",  num:"3", label:"Qualitative Analysis"},
+  {id:"shareholding", num:"4", label:"Shareholding Pattern"},
+  {id:"thesis",       num:"5", label:"Investment Thesis"},
+  {id:"valuation",    num:"6", label:"Valuation & Recommendation"},
+  {id:"conclusion",   num:"7", label:"Conclusion"}
+];
+
+var SYSTEM_PROMPT = [
+"You are a senior equity research analyst covering Indian listed equities. You write objective, evidence-led",
+"fundamental research notes in the house style of SEETHARAMAN.",
+"",
+"You must call the render_report tool exactly once with the complete report. Do not reply with plain text.",
+"",
+"=== HTML FORMATTING CONTRACT ===",
+"Each section value is an HTML fragment (no <html>, <head>, <body>, <style> or <script> tags).",
+"Use only these elements and classes so the host page can style them consistently:",
+"  <h3>  major section heading (e.g. 'a) Market Valuation and Price Metrics')",
+"  <h4>  sub-heading (e.g. 'Core Products / Services')",
+"  <p>, <ul>, <ol>, <li>, <strong>, <em>",
+"  <span class=\"figure\">...</span>  to highlight an important number or the final recommendation",
+"  <div class=\"table-wrap\"><table><thead><tr><th>..</th></tr></thead><tbody><tr><td>..</td></tr></tbody></table></div>",
+"  <div class=\"callout\"><span class=\"callout-label\">Trend Analysis</span><p>..</p></div>",
+"  <div class=\"callout takeaway\"><span class=\"callout-label\">Key Takeaways</span><p>..</p></div>",
+"  <div class=\"callout risk\"><span class=\"callout-label\">Red Flags</span><p>..</p></div>",
+"For every trend word in the final column of a table, wrap it in a trend span:",
+"  <span class=\"t-up\">Improving</span>  positive / improving",
+"  <span class=\"t-down\">Declining</span>  negative / deteriorating",
+"  <span class=\"t-flat\">Stable</span>  neutral / stable / fluctuating",
+"Optional simple bar visualisation (use where a 5-year series helps the reader):",
+"  <div class=\"bars\"><div class=\"bar-row\"><span class=\"bar-lbl\">FY25</span>",
+"    <span class=\"bar-track\"><span class=\"bar-fill\" style=\"width:82%\"></span></span>",
+"    <span class=\"bar-val\">18.4%</span></div></div>",
+"Bar widths must be scaled proportionally against the largest value in that series.",
+"",
+"=== REQUIRED REPORT STRUCTURE ===",
+"Follow this structure, order and depth exactly for whichever stock is supplied.",
+"",
+"SECTION 1 overview — Company Overview",
+"  Brief introduction: name, sector, primary business activities, promoter/management background.",
+"  Core business segments as a bulleted list with approximate revenue share where known.",
+"  Recent significant events or structural/operational changes.",
+"",
+"SECTION 2 quantitative — Quantitative Analysis",
+"  Sub-sections a) to h), each with a data table, then a 'Trend Analysis' callout, then a",
+"  'Key Takeaways' takeaway callout. Show the last 5 fiscal years where available.",
+"  a) Market Valuation and Price Metrics — Market Capitalisation, Current Stock Price, P/E Ratio",
+"  b) Profitability and Returns — ROE, ROCE, Net Profit Margin, Operating Profit Margin",
+"  c) Growth Metrics — Revenue Growth (5-yr and 3-yr CAGR), EPS Growth (5-yr and 3-yr CAGR)",
+"  d) Balance Sheet Strength — Debt-to-Equity Ratio",
+"  e) Cash Flow Analysis — Cash Flow from Operations",
+"  f) Dividend Analysis — Dividend Yield, Dividend Payout Ratio",
+"  g) Efficiency Ratios — Asset Turnover Ratio (add cash conversion cycle / working capital days if relevant)",
+"  h) Valuation Metrics — comparison of P/E with industry peers, plus ROCE and Debt/Equity, and an",
+"     industry median row. Treat the peer P/E comparison qualitatively (premium / in line / discount)",
+"     rather than presenting peer figures as precise fact.",
+"  Throughout: highlight significant year-on-year changes, compare against industry benchmarks,",
+"  identify red flags, and explain the implications for investors.",
+"",
+"SECTION 3 qualitative — Qualitative Analysis",
+"  a) Business Model — core products/services, revenue streams, competitive advantages",
+"  b) Management Quality — experience and track record of key executives, corporate governance",
+"  c) Growth Strategy — expansion plans, R&D initiatives",
+"",
+"SECTION 4 shareholding — Shareholding Pattern Analysis",
+"  Table across the four most recent reported quarters: Promoters, FIIs, DIIs, Government, Public,",
+"  each with a trend span. Follow with analysis of promoter holding changes, the FII/DII shift,",
+"  public shareholding trends, and a Key Takeaways callout.",
+"",
+"SECTION 5 thesis — Investment Thesis",
+"  'Key Drivers for Future Growth', 'Potential Catalysts for Stock Price Movement', and",
+"  'Positioning for Industry Trends and Challenges' — each a bulleted list with a bolded lead-in",
+"  phrase per bullet. Focus on the trends, challenges and innovations specific to this industry.",
+"",
+"SECTION 6 valuation — Valuation and Recommendation",
+"  'Fair Value Estimate' using an appropriate method (SOTP, DCF, P/E multiple, P/B for financials),",
+"  showing the build-up. State the resulting fair value and the implied upside/downside versus the",
+"  current price. Then an 'Investment Recommendation' block (Strong Buy / Buy / Hold / Sell /",
+"  Strong Sell) with target price and horizon, followed by 'Rationale for Recommendation' as a",
+"  bulleted list. Wrap the final recommendation and target price in <span class=\"figure\">.",
+"",
+"SECTION 7 conclusion — Conclusion",
+"  Three to four paragraphs summarising the analysis and restating the recommendation, target",
+"  price and horizon.",
+"",
+"=== ANALYTICAL GROUND RULES ===",
+"- Indian fiscal years run 1 April to 31 March. FY26 = 1 Apr 2025 to 31 Mar 2026. Label years FY22..FY26 style.",
+"- Use the latest available annual period for balance sheet, income statement and cash flow data.",
+"- Amounts in Indian rupees, using crore (Cr) convention and Indian digit grouping, e.g. Rs 16,88,704 Cr.",
+"- Lookback period is the last 5 fiscal years.",
+"- Where a data point is genuinely unavailable, give a qualitative assessment and mark the figure",
+"  approximate with a tilde or the word 'approx.' rather than inventing precision.",
+"- Because you are working from training data rather than a live feed, add a short italic line at the",
+"  end of section 1 noting that prices and ratios are indicative and should be verified against",
+"  Screener.in, Yahoo Finance and TradingView for the most recent closes.",
+"- Maintain an objective tone. Include genuine risks and red flags, not only positives.",
+"- Adapt the metric set intelligently to the sector: for banks and NBFCs use NIM, GNPA/NNPA, CASA,",
+"  Provision Coverage, Capital Adequacy and Price-to-Book in place of metrics that do not apply.",
+"- Do not mention the report generation date.",
+"- Be specific and substantiate points with figures, market share and growth rates."
+].join("\n");
+
+var TOOL = {
+  name:"render_report",
+  description:"Render the completed seven-section equity analysis report.",
+  input_schema:{
+    type:"object",
+    properties:{
+      companyName:{type:"string",description:"Full registered company name, e.g. 'Tata Consultancy Services Ltd'"},
+      ticker:{type:"string",description:"NSE ticker, e.g. 'TCS'"},
+      exchange:{type:"string",description:"Primary exchange, e.g. 'NSE'"},
+      sector:{type:"string",description:"Sector / industry, e.g. 'Information Technology - Services'"},
+      recommendation:{
+        type:"object",
+        properties:{
+          rating:{type:"string",description:"One of: Strong Buy, Buy, Hold, Sell, Strong Sell"},
+          targetPrice:{type:"string",description:"Target price with currency symbol, e.g. 'Rs 4,250'"},
+          currentPrice:{type:"string",description:"Latest indicative price, e.g. 'Rs 3,180'"},
+          changePct:{type:"string",description:"e.g. '34% upside' or '12% downside'"},
+          direction:{type:"string",description:"'upside' or 'downside'"},
+          horizon:{type:"string",description:"e.g. '18-24 months'"}
+        },
+        required:["rating","targetPrice","currentPrice","changePct","horizon"]
+      },
+      sections:{
+        type:"object",
+        properties:{
+          overview:{type:"string",description:"Section 1 HTML fragment"},
+          quantitative:{type:"string",description:"Section 2 HTML fragment, sub-sections a) to h)"},
+          qualitative:{type:"string",description:"Section 3 HTML fragment"},
+          shareholding:{type:"string",description:"Section 4 HTML fragment"},
+          thesis:{type:"string",description:"Section 5 HTML fragment"},
+          valuation:{type:"string",description:"Section 6 HTML fragment"},
+          conclusion:{type:"string",description:"Section 7 HTML fragment"}
+        },
+        required:["overview","quantitative","qualitative","shareholding","thesis","valuation","conclusion"]
+      }
+    },
+    required:["companyName","sector","recommendation","sections"]
+  }
+};
+
+/* ============================================================
+   2. Element handles
+   ============================================================ */
+
+var $ = function(id){ return document.getElementById(id); };
+var form=$("form"), stockEl=$("stock"), goBtn=$("go"),
+    keyEl=$("apikey"), modelEl=$("model"),
+    settingsEl=$("settings"), settingsToggle=$("settingsToggle"),
+    statusEl=$("status"), spinner=$("spinner"),
+    statusTitle=$("statusTitle"), statusDetail=$("statusDetail"),
+    reportEl=$("report"), tabbar=$("tabbar"), panels=$("panels");
+
+/* ============================================================
+   3. Settings persistence
+   ============================================================ */
+
+var LS_KEY="eq_report_apikey", LS_MODEL="eq_report_model";
+try{
+  keyEl.value = localStorage.getItem(LS_KEY) || "";
+  var savedModel = localStorage.getItem(LS_MODEL);
+  if(savedModel) modelEl.value = savedModel;
+}catch(e){}
+keyEl.addEventListener("change",function(){
+  try{ localStorage.setItem(LS_KEY, keyEl.value.trim()); }catch(e){}
+});
+modelEl.addEventListener("change",function(){
+  try{ localStorage.setItem(LS_MODEL, modelEl.value); }catch(e){}
+});
+settingsToggle.addEventListener("click",function(){
+  settingsEl.hidden = !settingsEl.hidden;
+});
+if(!keyEl.value) settingsEl.hidden = false;
+
+Array.prototype.forEach.call(document.querySelectorAll(".chip"),function(c){
+  c.addEventListener("click",function(){
+    stockEl.value = c.textContent.trim();
+    form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(new Event("submit",{cancelable:true}));
+  });
+});
+
+/* ============================================================
+   4. Status helpers
+   ============================================================ */
+
+function showStatus(title,detail,isError){
+  statusEl.hidden=false;
+  statusEl.classList.toggle("error",!!isError);
+  spinner.style.display = isError ? "none" : "";
+  statusTitle.textContent=title;
+  statusDetail.textContent=detail||"";
+}
+function hideStatus(){ statusEl.hidden=true; statusEl.classList.remove("error"); }
+function setBusy(busy){
+  goBtn.disabled=busy;
+  goBtn.textContent = busy ? "Analysing…" : "Generate Report";
+}
+
+/* ============================================================
+   5. API call — streaming, forced single tool use
+   ============================================================ */
+
+function buildUserMessage(stock){
+  return "Produce a complete equity analysis report for the following Indian listed company: **"+stock+"**\n\n"+
+         "Identify the company precisely (resolve the ticker or informal name to the full registered entity). "+
+         "Then call the render_report tool once with every section fully written out, following the required "+
+         "structure, formatting contract and analytical ground rules exactly.";
+}
+
+function callClaude(stock,apiKey,model,onProgress){
+  var body = {
+    model: model,
+    max_tokens: 16000,
+    stream: true,
+    system: SYSTEM_PROMPT,
+    tools: [TOOL],
+    tool_choice: {type:"tool", name:"render_report"},
+    messages: [{role:"user", content: buildUserMessage(stock)}]
+  };
+
+  return fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{
+      "content-type":"application/json",
+      "x-api-key":apiKey,
+      "anthropic-version":"2023-06-01",
+      "anthropic-dangerous-direct-browser-access":"true"
+    },
+    body: JSON.stringify(body)
+  }).then(function(resp){
+    if(!resp.ok){
+      return resp.text().then(function(txt){
+        var msg = "HTTP "+resp.status;
+        try{
+          var j=JSON.parse(txt);
+          if(j.error && j.error.message) msg = j.error.message;
+        }catch(e){ if(txt) msg += " — "+txt.slice(0,300); }
+        if(resp.status===401) msg = "Invalid or missing API key. Check it under API settings.";
+        if(resp.status===429) msg = "Rate limited or out of credit. "+msg;
+        throw new Error(msg);
+      });
+    }
+    return readStream(resp,onProgress);
+  });
+}
+
+function readStream(resp,onProgress){
+  var reader = resp.body.getReader();
+  var decoder = new TextDecoder();
+  var buffer = "", json = "", streamError = null;
+
+  function handleEvent(evt){
+    if(evt.type==="content_block_delta" && evt.delta && evt.delta.type==="input_json_delta"){
+      json += evt.delta.partial_json;
+      if(onProgress) onProgress(json.length);
+    }else if(evt.type==="error"){
+      streamError = new Error((evt.error && evt.error.message) || "Streaming error");
+    }
+  }
+
+  function pump(){
+    return reader.read().then(function(res){
+      if(streamError) throw streamError;
+      if(res.done){
+        if(!json) throw new Error("The model returned no report content. Try again, or switch model.");
+        var parsed;
+        try{ parsed = JSON.parse(json); }
+        catch(e){
+          throw new Error("The report was cut off before it finished. Try again, or use a different model.");
+        }
+        return parsed;
+      }
+      buffer += decoder.decode(res.value,{stream:true});
+      var idx;
+      while((idx = buffer.indexOf("\n\n")) >= 0){
+        var chunk = buffer.slice(0,idx);
+        buffer = buffer.slice(idx+2);
+        var lines = chunk.split("\n");
+        for(var i=0;i<lines.length;i++){
+          var line = lines[i];
+          if(line.indexOf("data:")!==0) continue;
+          var data = line.slice(5).trim();
+          if(!data || data==="[DONE]") continue;
+          var evt=null;
+          try{ evt = JSON.parse(data); }catch(e){ continue; }
+          handleEvent(evt);
+        }
+      }
+      return pump();
+    });
+  }
+  return pump();
+}
+
+/* ============================================================
+   6. Sanitising + trend auto-colouring
+   ============================================================ */
+
+// Strip anything executable from the model-authored HTML before injecting it.
+function sanitize(html){
+  var tpl = document.createElement("div");
+  tpl.innerHTML = String(html||"");
+  var bad = tpl.querySelectorAll("script,style,iframe,object,embed,link,meta,form,input,button");
+  Array.prototype.forEach.call(bad,function(n){ n.parentNode.removeChild(n); });
+  var all = tpl.querySelectorAll("*");
+  Array.prototype.forEach.call(all,function(n){
+    Array.prototype.slice.call(n.attributes).forEach(function(a){
+      var name=a.name.toLowerCase(), val=String(a.value||"");
+      var keep = (name==="class") ||
+                 (name==="style" && /^[a-z0-9\s:;%.,#()\-]*$/i.test(val)) ||
+                 (name==="colspan") || (name==="rowspan");
+      if(!keep) n.removeAttribute(a.name);
+    });
+  });
+  return tpl.innerHTML;
+}
+
+var NEG=/declin|deteriorat|weaken|worsen|contract|erosion|shrink|falling|fell|negative|downside|adverse|pressure|slowdown|deficit|loss-mak/i;
+var POS=/increas|improv|growth|growing|grew|strong|accelerat|expand|robust|healthy|favou?rable|upside|rising|rose|recover|efficient|outperform|positive|record/i;
+var NEU=/stable|steady|consistent|flat|range|fluctuat|mixed|moderat|volatile|unchanged|maintain/i;
+
+// Colour-code the trend cell (last column) of each table row, unless the model
+// already tagged it with an explicit trend span.
+function autoColourTrends(root){
+  Array.prototype.forEach.call(root.querySelectorAll("table"),function(tbl){
+    var head = tbl.querySelector("thead tr");
+    if(!head) return;
+    var cells = head.children;
+    var last = cells.length-1;
+    if(last < 1) return;
+    var headText = (cells[last].textContent||"").toLowerCase();
+    if(headText.indexOf("trend")===-1 && headText.indexOf("commentary")===-1) return;
+
+    Array.prototype.forEach.call(tbl.querySelectorAll("tbody tr"),function(tr){
+      var cell = tr.children[last];
+      if(!cell) return;
+      if(cell.querySelector(".t-up,.t-down,.t-flat")) return;
+      var txt = (cell.textContent||"").trim();
+      if(!txt) return;
+      var cls = NEG.test(txt) ? "t-down" : POS.test(txt) ? "t-up" : NEU.test(txt) ? "t-flat" : null;
+      if(!cls) return;
+      var span = document.createElement("span");
+      span.className = cls;
+      span.textContent = txt;
+      cell.textContent = "";
+      cell.appendChild(span);
+    });
+  });
+}
+
+/* ============================================================
+   7. Rendering
+   ============================================================ */
+
+function ratingClass(rating){
+  var r=(rating||"").toLowerCase();
+  if(r.indexOf("buy")>-1)  return "rating-buy";
+  if(r.indexOf("sell")>-1) return "rating-sell";
+  return "rating-hold";
+}
+
+function render(data){
+  var rec = data.recommendation || {};
+
+  $("rEyebrow").textContent = (data.sector || "Equity Research");
+  $("rTitle").textContent = (data.companyName || "—") + " — Equity Analysis Report";
+
+  var bits=[];
+  if(data.ticker)   bits.push("<b>"+esc(data.ticker)+"</b>");
+  if(data.exchange) bits.push(esc(data.exchange));
+  if(data.sector)   bits.push(esc(data.sector));
+  $("rSub").innerHTML = bits.join(" &nbsp;·&nbsp; ");
+
+  var ratingEl=$("recRating");
+  ratingEl.textContent = (rec.rating||"—").toUpperCase();
+  ratingEl.className = "v " + ratingClass(rec.rating);
+  $("recTarget").textContent  = rec.targetPrice  || "—";
+  $("recChange").textContent  = rec.changePct    || "";
+  $("recCurrent").textContent = rec.currentPrice || "—";
+  $("recHorizon").textContent = rec.horizon      || "—";
+
+  // Build tabs + panels
+  tabbar.innerHTML=""; panels.innerHTML="";
+  TABS.forEach(function(t,i){
+    var btn=document.createElement("button");
+    btn.type="button"; btn.role="tab";
+    btn.id="tab-"+t.id;
+    btn.setAttribute("aria-controls","panel-"+t.id);
+    btn.setAttribute("aria-selected", i===0 ? "true":"false");
+    btn.innerHTML='<span class="num">'+t.num+'</span>'+esc(t.label);
+    btn.addEventListener("click",function(){ selectTab(t.id); });
+    tabbar.appendChild(btn);
+
+    var panel=document.createElement("section");
+    panel.className="panel"; panel.id="panel-"+t.id;
+    panel.setAttribute("role","tabpanel");
+    panel.setAttribute("aria-labelledby","tab-"+t.id);
+    panel.hidden = i!==0;
+    panel.innerHTML = sanitize((data.sections||{})[t.id] || "<p><em>No content was returned for this section.</em></p>");
+    autoColourTrends(panel);
+    panels.appendChild(panel);
+  });
+
+  reportEl.hidden=false;
+}
+
+function selectTab(id){
+  TABS.forEach(function(t){
+    var btn=$("tab-"+t.id), panel=$("panel-"+t.id);
+    var on = t.id===id;
+    if(btn) btn.setAttribute("aria-selected", on?"true":"false");
+    if(panel) panel.hidden = !on;
+  });
+  var top = reportEl.getBoundingClientRect().top + window.pageYOffset - 12;
+  if(window.pageYOffset > top) window.scrollTo({top:top, behavior:"smooth"});
+}
+
+function esc(s){
+  return String(s==null?"":s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+/* ============================================================
+   8. Export
+   ============================================================ */
+
+$("btnPrint").addEventListener("click",function(){ window.print(); });
+
+$("btnDownload").addEventListener("click",function(){
+  var css = document.getElementById("app-style").textContent;
+  var title = $("rTitle").textContent;
+
+  var tabsHtml = TABS.map(function(t,i){
+    return '<button type="button" onclick="pick(\''+t.id+'\')" id="tab-'+t.id+'" aria-selected="'+(i===0)+'">'+
+           '<span class="num">'+t.num+'</span>'+esc(t.label)+'</button>';
+  }).join("");
+
+  var panelsHtml = TABS.map(function(t,i){
+    var p=$("panel-"+t.id);
+    return '<section class="panel" id="panel-'+t.id+'"'+(i===0?"":" hidden")+'>'+(p?p.innerHTML:"")+'</section>';
+  }).join("");
+
+  var doc =
+'<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'+
+'<meta name="viewport" content="width=device-width, initial-scale=1">'+
+'<title>'+esc(title)+'</title><style>'+css+'</style></head><body>'+
+document.querySelector(".masthead").outerHTML+
+'<main><section class="card report">'+
+  document.querySelector(".report-head").outerHTML+
+  document.getElementById("recBox").outerHTML+
+  '<div class="report-actions"><button type="button" class="btn btn-ghost btn-sm" onclick="window.print()">Print / Save as PDF</button></div>'+
+  '<nav class="tabbar" role="tablist">'+tabsHtml+'</nav>'+
+  '<div class="panels">'+panelsHtml+'</div>'+
+'</section></main>'+
+document.querySelector(".site-footer").outerHTML+
+'<script>function pick(id){var ids='+JSON.stringify(TABS.map(function(t){return t.id;}))+';'+
+'ids.forEach(function(i){var b=document.getElementById("tab-"+i),p=document.getElementById("panel-"+i);'+
+'if(b)b.setAttribute("aria-selected",String(i===id));if(p)p.hidden=(i!==id);});}<\/script>'+
+'</body></html>';
+
+  var slug = ($("rTitle").textContent.split("—")[0] || "report")
+              .trim().replace(/[^a-z0-9]+/gi,"-").replace(/^-|-$/g,"").toLowerCase();
+  var blob = new Blob([doc],{type:"text/html;charset=utf-8"});
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = (slug||"equity-analysis")+"-equity-analysis.html";
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },0);
+});
+
+/* ============================================================
+   9. Wire up submit
+   ============================================================ */
+
+form.addEventListener("submit",function(ev){
+  ev.preventDefault();
+  var stock = stockEl.value.trim();
+  var apiKey = keyEl.value.trim();
+  var model = modelEl.value;
+
+  if(!stock) return;
+  if(!apiKey){
+    settingsEl.hidden=false;
+    showStatus("API key required","Add your Anthropic API key under API settings to generate a report.",true);
+    keyEl.focus();
+    return;
+  }
+  try{ localStorage.setItem(LS_KEY,apiKey); }catch(e){}
+
+  reportEl.hidden=true;
+  setBusy(true);
+  showStatus("Analysing "+stock+"…","Building the seven-section research note. This usually takes 60–120 seconds.");
+
+  var started=Date.now();
+  callClaude(stock,apiKey,model,function(chars){
+    var secs=Math.round((Date.now()-started)/1000);
+    statusDetail.textContent="Writing report — "+chars.toLocaleString()+" characters generated ("+secs+"s elapsed).";
+  }).then(function(data){
+    hideStatus();
+    setBusy(false);
+    render(data);
+    reportEl.scrollIntoView({behavior:"smooth",block:"start"});
+  }).catch(function(err){
+    setBusy(false);
+    var msg = err && err.message ? err.message : String(err);
+    if(/Failed to fetch|NetworkError/i.test(msg)){
+      msg = "Could not reach api.anthropic.com. Check your internet connection — and note that some browsers block this when the file is opened over file:// with strict extensions enabled.";
+    }
+    showStatus("Could not generate the report", msg, true);
+  });
+});
+
+})();
+</script>
+
+</body>
+</html>
