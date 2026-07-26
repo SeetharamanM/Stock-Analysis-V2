@@ -33,10 +33,10 @@ DEFAULT_MODEL = "claude-sonnet-5"
 # longer. Truncation mid-tool-use silently loses the sections, so leave headroom.
 MAX_TOKENS = 32000
 
-# Per-provider defaults. `max_tokens` reflects the largest single response the
-# provider will produce: DeepSeek caps deepseek-chat output at 8K, which is not
-# enough for a full seven-section report, so long reports may come back cut off
-# on that provider — switch to OpenRouter or Anthropic for the full length.
+# Per-provider defaults. `max_tokens` reflects a comfortable ceiling for a full
+# seven-section report (~10-14k output tokens). DeepSeek's v4 models allow far
+# more (v4-flash up to 65,536, v4-pro more), so 32000 leaves ample headroom;
+# LLM_MAX_TOKENS overrides it per environment.
 PROVIDER_DEFAULTS = {
     "anthropic": {
         "model": DEFAULT_MODEL,
@@ -51,10 +51,10 @@ PROVIDER_DEFAULTS = {
         "max_tokens": 32000,
     },
     "deepseek": {
-        "model": "deepseek-chat",
+        "model": "deepseek-v4-pro",
         "base_url": "https://api.deepseek.com",
         "key_env": "DEEPSEEK_API_KEY",
-        "max_tokens": 8192,
+        "max_tokens": 32000,
     },
 }
 
@@ -432,6 +432,64 @@ def _salvage_sections(blob: str) -> dict:
     return out
 
 
+def _extract_json_object(text: str) -> dict:
+    """
+    Parse a JSON *object* out of free text.
+
+    Reasoning models called with tool_choice="auto" sometimes answer in prose
+    with the JSON inline, or wrap it in a ```json code fence, instead of putting
+    it in clean tool-call arguments. Try the whole string, then a fenced block,
+    then the first `{`…last `}` span. Return {} if nothing parses to an object.
+    """
+    if not text or not text.strip():
+        return {}
+    s = text.strip()
+    candidates = [s]
+    fence = re.search(r"```(?:json)?\s*(.*?)```", s, re.S)
+    if fence:
+        candidates.append(fence.group(1).strip())
+    first, last = s.find("{"), s.rfind("}")
+    if first != -1 and last > first:
+        candidates.append(s[first:last + 1])
+    for cand in candidates:
+        try:
+            parsed = json.loads(cand)
+        except (ValueError, TypeError):
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+    return {}
+
+
+def _extract_report_input(tool_args: str | None, text: str | None) -> dict:
+    """
+    Turn whatever the model returned into a report dict, regardless of model.
+
+    With tool_choice="auto" (so thinking models keep their reasoning), the
+    payload can arrive three ways: as tool-call arguments, as JSON in the text
+    reply, or as a slightly malformed blob. Try them in that order of fidelity,
+    salvaging sections by hand as a last resort. Returns {} when nothing usable
+    is found; the caller turns that into an AnalystError.
+    """
+    # 1. Preferred: a tool call carrying JSON arguments.
+    if tool_args and tool_args.strip():
+        obj = _extract_json_object(tool_args)
+        if obj:
+            return obj
+    # 2. The model replied in text instead of (or as well as) calling the tool.
+    if text and text.strip():
+        obj = _extract_json_object(text)
+        if obj:
+            return obj
+    # 3. Last resort: hand-salvage sections from whichever blob we have.
+    for blob in (tool_args, text):
+        if blob and blob.strip():
+            salvaged = _salvage_sections(blob)
+            if salvaged:
+                return salvaged
+    return {}
+
+
 def _normalise(report: dict) -> dict:
     """Coerce the report into the shape the renderer expects."""
     report["recommendation"] = _as_dict(report.get("recommendation"))
@@ -517,23 +575,28 @@ def _analyse_anthropic(cfg: LLMConfig, user_msg: str, api_key: str | None,
     client = get_client(api_key or cfg.api_key)
 
     try:
+        # tool_choice="auto" rather than forcing render_report, so the path is
+        # model-agnostic: models that reason before answering (which restrict a
+        # forced tool_choice) keep their reasoning. The prompt still directs the
+        # model to call the tool; if it answers in text, we recover it below.
         with client.messages.stream(
             model=cfg.model,
             max_tokens=cfg.max_tokens,
             system=_system_blocks(),
             tools=[TOOL],
-            tool_choice={"type": "tool", "name": "render_report"},
+            tool_choice={"type": "auto"},
             messages=[{"role": "user", "content": user_msg}],
         ) as stream:
             chars = 0
             for event in stream:
-                if (
-                    event.type == "content_block_delta"
-                    and getattr(event.delta, "type", "") == "input_json_delta"
-                ):
-                    chars += len(event.delta.partial_json or "")
+                if event.type == "content_block_delta":
+                    dtype = getattr(event.delta, "type", "")
+                    if dtype == "input_json_delta":
+                        chars += len(event.delta.partial_json or "")
+                    elif dtype == "text_delta":
+                        chars += len(event.delta.text or "")
                     if on_progress:
-                        on_progress(chars)
+                        on_progress(chars, "writing")
             final = stream.get_final_message()
     except anthropic.AuthenticationError as exc:
         raise AnalystError("Anthropic rejected the API key. Check ANTHROPIC_API_KEY.") from exc
@@ -553,23 +616,33 @@ def _analyse_anthropic(cfg: LLMConfig, user_msg: str, api_key: str | None,
             "before it finished. Raise LLM_MAX_TOKENS, or try a different model."
         )
 
+    # Prefer a render_report tool_use block; fall back to any text the model
+    # produced instead (thinking models may answer in prose under auto).
+    tool_input = None
+    text_out = ""
     for block in final.content:
         if block.type == "tool_use" and block.name == "render_report":
-            return _finish_report(
-                dict(block.input),
-                {
-                    "input_tokens": final.usage.input_tokens,
-                    "output_tokens": final.usage.output_tokens,
-                    "stop_reason": final.stop_reason,
-                    "model": cfg.model,
-                    "provider": cfg.provider,
-                },
-                final.stop_reason,
-            )
+            tool_input = dict(block.input)
+        elif block.type == "text":
+            text_out += block.text or ""
 
-    raise AnalystError(
-        "The model did not return a report. This usually means the response was cut "
-        f"short (stop_reason={final.stop_reason}) — try again, or switch model."
+    report_input = tool_input if tool_input else _extract_report_input(None, text_out)
+    if not report_input:
+        raise AnalystError(
+            "The model did not return a parseable report (stop_reason="
+            f"{final.stop_reason}) — try again, or switch model."
+        )
+
+    return _finish_report(
+        report_input,
+        {
+            "input_tokens": final.usage.input_tokens,
+            "output_tokens": final.usage.output_tokens,
+            "stop_reason": final.stop_reason,
+            "model": cfg.model,
+            "provider": cfg.provider,
+        },
+        final.stop_reason,
     )
 
 
@@ -577,9 +650,11 @@ def _analyse_openai(cfg: LLMConfig, user_msg: str, api_key: str | None,
                     on_progress=None) -> dict:
     """OpenAI-compatible path (OpenRouter, DeepSeek) via the `openai` SDK.
 
-    The Anthropic tool-use call is expressed as an OpenAI forced function call;
-    the report arrives as a single JSON string in the function arguments, which
-    is then fed through the same normalise/salvage machinery as the native path.
+    The render_report tool is offered with tool_choice="auto" (not forced), so
+    reasoning models keep their reasoning. The report normally arrives as JSON in
+    the function-call arguments, but a model that answers in text is handled too:
+    both go through the same _extract_report_input/normalise machinery as the
+    native path.
     """
     try:
         import openai
@@ -604,13 +679,26 @@ def _analyse_openai(cfg: LLMConfig, user_msg: str, api_key: str | None,
     # OpenRouter uses these headers for attribution/leaderboards; harmless
     # elsewhere but only sent when talking to OpenRouter.
     extra_headers = None
+    extra_body = None
     if cfg.provider == "openrouter":
         extra_headers = {
             "HTTP-Referer": "http://127.0.0.1:5057",
             "X-Title": "Equity Analysis Report Generator",
         }
+        # Ask OpenRouter to STREAM reasoning tokens rather than let the upstream
+        # compute them silently. A reasoning model that thinks without emitting
+        # anything makes the connection go idle, which is what trips OpenRouter's
+        # "Upstream idle timeout". Streaming the reasoning keeps tokens flowing
+        # (and feeds the "thinking" progress indicator). Harmless for models that
+        # don't reason. Reasoning is kept ON — only its streaming is requested.
+        extra_body = {"reasoning": {"enabled": True}}
 
     try:
+        # tool_choice="auto" (not a forced function) so reasoning/"thinking"
+        # models keep their reasoning on: a forced tool_choice is what they
+        # reject ("Thinking mode does not support this tool_choice"). The strong
+        # system prompt still steers them to call render_report; if a model
+        # answers in text instead, _extract_report_input recovers it below.
         stream = client.chat.completions.create(
             model=cfg.model,
             max_tokens=cfg.max_tokens,
@@ -619,13 +707,16 @@ def _analyse_openai(cfg: LLMConfig, user_msg: str, api_key: str | None,
                 {"role": "user", "content": user_msg},
             ],
             tools=[openai_tool],
-            tool_choice={"type": "function", "function": {"name": TOOL["name"]}},
+            tool_choice="auto",
             stream=True,
             stream_options={"include_usage": True},
             extra_headers=extra_headers,
+            extra_body=extra_body,
         )
 
-        buf = ""
+        buf = ""            # accumulated tool-call arguments (preferred payload)
+        text_buf = ""       # accumulated assistant text (fallback payload)
+        reasoning_chars = 0  # size of the model's thinking (shown, never stored)
         finish_reason = None
         usage_obj = None
         for chunk in stream:
@@ -637,12 +728,27 @@ def _analyse_openai(cfg: LLMConfig, user_msg: str, api_key: str | None,
             if choice.finish_reason:
                 finish_reason = choice.finish_reason
             delta = choice.delta
-            if delta and getattr(delta, "tool_calls", None):
+            if not delta:
+                continue
+            if getattr(delta, "tool_calls", None):
                 for tc in delta.tool_calls:
                     if tc.function and tc.function.arguments:
                         buf += tc.function.arguments
-                        if on_progress:
-                            on_progress(len(buf))
+            if getattr(delta, "content", None):
+                text_buf += delta.content
+            # Reasoning streams separately (delta.reasoning / .reasoning_content).
+            # It is the model's private thinking, so it must never enter the
+            # report — but its size is reported as a "thinking" phase so a long
+            # think doesn't look like a hang at 0 characters.
+            rdelta = getattr(delta, "reasoning", None) or getattr(delta, "reasoning_content", None)
+            if isinstance(rdelta, str):
+                reasoning_chars += len(rdelta)
+            if on_progress:
+                written = len(buf) + len(text_buf)
+                if written:
+                    on_progress(written, "writing")
+                elif reasoning_chars:
+                    on_progress(reasoning_chars, "thinking")
     except openai.AuthenticationError as exc:
         raise AnalystError(
             f"{cfg.provider} rejected the API key. Check {cfg.key_env}."
@@ -654,36 +760,35 @@ def _analyse_openai(cfg: LLMConfig, user_msg: str, api_key: str | None,
             f"{cfg.provider} API error {exc.status_code}: {getattr(exc, 'message', exc)}"
         ) from exc
     except openai.APIError as exc:
+        if "idle timeout" in str(exc).lower():
+            raise AnalystError(
+                f"{cfg.provider} dropped the connection with an upstream idle timeout. "
+                "A reasoning model thought for too long without streaming any output. "
+                "Retry (routing may land on a faster provider), pick a model whose "
+                "reasoning streams, or switch to a lighter/non-reasoning model."
+            ) from exc
         raise AnalystError(f"{cfg.provider} API error: {exc}") from exc
 
     if finish_reason == "length":
         raise AnalystError(
             f"The report hit the {cfg.max_tokens:,}-token output limit for model "
             f"'{cfg.model}' and was cut off. Raise LLM_MAX_TOKENS if the model allows "
-            "it, or use a model/provider with a larger output limit (DeepSeek caps at 8K)."
+            "it, or use a model/provider with a larger output limit."
         )
 
-    if not buf.strip():
+    if not buf.strip() and not text_buf.strip():
         raise AnalystError(
-            f"{cfg.provider} did not return a report via the render_report function "
-            f"(finish_reason={finish_reason}). The model may not support forced tool "
-            "calls — try a different model, or Anthropic."
+            f"{cfg.provider} returned an empty response (finish_reason={finish_reason}). "
+            "Try again, or switch model/provider."
         )
 
-    try:
-        report_input = json.loads(buf)
-        if not isinstance(report_input, dict):
-            raise ValueError("tool arguments were not a JSON object")
-    except ValueError:
-        # Same failure mode the native path guards against: a large, slightly
-        # mis-escaped JSON blob. Recover the sections rather than lose the report.
-        salvaged = _salvage_sections(buf)
-        if not salvaged:
-            raise AnalystError(
-                f"{cfg.provider} returned malformed tool arguments that could not be "
-                "parsed. Try again, or switch model/provider."
-            )
-        report_input = salvaged
+    report_input = _extract_report_input(buf, text_buf)
+    if not report_input:
+        raise AnalystError(
+            f"{cfg.provider} did not return a parseable report (finish_reason="
+            f"{finish_reason}). The model replied without usable structured output — "
+            "try again, or switch model/provider."
+        )
 
     usage = {
         "input_tokens": getattr(usage_obj, "prompt_tokens", None),

@@ -197,7 +197,7 @@ def api_analyze():
                 try:
                     result["report"] = analyst.analyse(
                         company, live, model=model,
-                        on_progress=lambda n: q.put(("progress", n)),
+                        on_progress=lambda n, phase="writing": q.put(("progress", (n, phase))),
                     )
                 except Exception as exc:  # surfaced to the client below
                     result["error"] = exc
@@ -211,7 +211,14 @@ def api_analyze():
                 kind, value = q.get()
                 if kind == "done":
                     break
-                yield sse("progress", {"step": "analyse", "chars": value})
+                count, phase = value
+                if phase == "thinking":
+                    yield sse("progress", {
+                        "step": "analyse",
+                        "message": f"Model is thinking… ({count:,} reasoning characters so far)",
+                    })
+                else:
+                    yield sse("progress", {"step": "analyse", "chars": count})
             thread.join()
 
             if "error" in result:

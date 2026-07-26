@@ -65,7 +65,7 @@ the matching API key, then restart the server.
 |---|---|---|---|
 | `anthropic` (default) | `ANTHROPIC_API_KEY` | `claude-sonnet-5` | Anthropic |
 | `openrouter` | `OPENROUTER_API_KEY` | `anthropic/claude-sonnet-4` | `https://openrouter.ai/api/v1` |
-| `deepseek` | `DEEPSEEK_API_KEY` | `deepseek-chat` | `https://api.deepseek.com` |
+| `deepseek` | `DEEPSEEK_API_KEY` | `deepseek-v4-pro` | `https://api.deepseek.com` |
 
 **Setting the model (your original question):** there is no persistent "default model" stored
 on OpenRouter's side — the model is chosen per request. In this app you set it once via
@@ -82,7 +82,7 @@ LLM_MODEL=deepseek/deepseek-chat
 # Or hit DeepSeek's own API directly
 LLM_PROVIDER=deepseek
 DEEPSEEK_API_KEY=sk-your-deepseek-key-here
-LLM_MODEL=deepseek-chat
+LLM_MODEL=deepseek-v4-pro   # or deepseek-v4-flash
 ```
 
 When `LLM_MODEL` is set it **overrides the model dropdown** in the UI (the dropdown is then
@@ -93,9 +93,11 @@ default. Optional `LLM_MAX_TOKENS` and `LLM_BASE_URL` override the token cap and
 tool use and prompt caching. OpenRouter and DeepSeek are OpenAI-compatible and are called
 through the `openai` SDK; the same report structure is requested as a forced function call.
 
-> **DeepSeek output cap:** `deepseek-chat` limits a single response to ~8K tokens, which is
-> often too short for a full seven-section report, so long reports may come back truncated.
-> For full-length reports use Anthropic, or an OpenRouter model with a larger output limit.
+> **DeepSeek + `LLM_MAX_TOKENS`:** DeepSeek's v4 models (`deepseek-v4-pro` / `deepseek-v4-flash`)
+> support large outputs (flash up to 65,536 tokens, pro more), but a full seven-section report
+> runs ~10–14K tokens — so set `LLM_MAX_TOKENS` (e.g. `32000`) or the response can be truncated.
+> Note the app disables DeepSeek's default *thinking mode* automatically, because thinking mode
+> rejects the forced tool call this app uses to return structured sections.
 
 ---
 
