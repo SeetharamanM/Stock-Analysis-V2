@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import html
 import json
+import os
 import re
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -348,6 +350,18 @@ def save(report: dict, company: dict, live: dict) -> dict:
     filename = f"{slugify(name)}-equity-analysis-{stamp}.html"
     path = OUTPUTS / filename
     path.write_text(render_html(report, company, live), encoding="utf-8")
+
+    # The network share this project lives on stamps newly written files with a
+    # fixed, wrong base time (~Dec 2002), so Explorer shows the wrong date. The
+    # share honours an explicit modification-time update, so restamp it to now.
+    # (The creation time is not settable on this share — it silently ignores the
+    # change — but the app reads a report's date from its filename regardless.)
+    try:
+        now = time.time()
+        os.utime(path, (now, now))
+    except OSError:
+        pass
+
     return {
         "filename": filename,
         "path": str(path),
