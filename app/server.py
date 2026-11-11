@@ -93,7 +93,7 @@ def health():
         key_env, model_fixed = cfg.key_env, cfg.model_fixed
         cfg_error = None
     except analyst.AnalystError as exc:
-        provider = (os.environ.get("LLM_PROVIDER") or "anthropic").strip().lower()
+        provider = analyst.env_provider()
         model, key_ok, key_env, model_fixed = analyst.DEFAULT_MODEL, False, "", False
         cfg_error = str(exc)
     return jsonify({
@@ -106,6 +106,7 @@ def health():
         "config_error": cfg_error,
         "outputs": str(OUTPUTS),
         "default_model": model,
+        "providers": analyst.list_providers(),
     })
 
 
@@ -160,9 +161,15 @@ def api_reports():
 def api_analyze():
     payload = request.get_json(silent=True) or {}
     stock = (payload.get("stock") or "").strip()
-    model = (payload.get("model") or analyst.DEFAULT_MODEL).strip()
+    model = (payload.get("model") or "").strip() or None
+    provider = (payload.get("provider") or "").strip().lower() or None
     if not stock:
         return jsonify({"error": "No stock supplied."}), 400
+    try:
+        cfg = analyst.resolve_config(model, provider)
+    except analyst.AnalystError as exc:
+        return jsonify({"error": str(exc)}), 400
+    provider_label = analyst.PROVIDER_DEFAULTS[cfg.provider]["label"]
 
     def stream():
         try:
@@ -188,7 +195,8 @@ def api_analyze():
             })
 
             # 3 — analyse ----------------------------------------------------
-            yield sse("progress", {"step": "analyse", "message": "Claude is writing the report…"})
+            yield sse("progress", {"step": "analyse",
+                             "message": f"{cfg.model} ({provider_label}) is writing the report…"})
 
             q: queue.Queue = queue.Queue()
             result: dict = {}
@@ -196,7 +204,7 @@ def api_analyze():
             def work():
                 try:
                     result["report"] = analyst.analyse(
-                        company, live, model=model,
+                        company, live, model=cfg.model, provider=cfg.provider,
                         on_progress=lambda n, phase="writing": q.put(("progress", (n, phase))),
                     )
                 except Exception as exc:  # surfaced to the client below

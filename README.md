@@ -4,8 +4,8 @@ A local web app that takes a stock name, pulls **live fundamentals** from Screen
 cross-checks the price against Yahoo Finance, and has an LLM write a seven-section equity
 research report — saved as **its own standalone HTML file** in `outputs/`.
 
-The LLM provider is switchable in `.env` — **Anthropic (Claude)**, **OpenRouter**, or
-**DeepSeek** — with no code changes. See [Choosing a provider](#choosing-a-provider).
+The LLM provider — **Anthropic (Claude)**, **DeepSeek** or **OpenRouter** — and its model are
+picked from dropdowns in the web UI. See [Choosing a provider](#choosing-a-provider).
 
 Report structure follows `Stock Analysis Prompt.txt`, which the backend reads at run time.
 Edit that file and the reports change — no code changes needed.
@@ -58,8 +58,22 @@ Then open <http://127.0.0.1:5057>.
 
 ## Choosing a provider
 
-The provider is selected entirely in `.env` — **no code changes**. Set `LLM_PROVIDER` and
-the matching API key, then restart the server.
+Pick the **Provider** and **Model** from the dropdowns above the stock search. Each provider
+needs its own API key in `.env`. Add the keys for every provider you want to use, then
+restart the server. A provider with no key shows as "— no key" in the dropdown.
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+DEEPSEEK_API_KEY=sk-...
+OPENROUTER_API_KEY=sk-or-...
+```
+
+The model dropdown lists common models for the chosen provider. Pick **Custom model id…** to
+type any other id, for example any model on OpenRouter such as
+`meta-llama/llama-3.3-70b-instruct`. The browser remembers your last provider and the last
+model you used for each provider.
+
+`LLM_PROVIDER` in `.env` only sets which provider is selected the first time the page opens.
 
 | `LLM_PROVIDER` | Key variable | Default model | Base URL |
 |---|---|---|---|
@@ -85,9 +99,10 @@ DEEPSEEK_API_KEY=sk-your-deepseek-key-here
 LLM_MODEL=deepseek-v4-pro   # or deepseek-v4-flash
 ```
 
-When `LLM_MODEL` is set it **overrides the model dropdown** in the UI (the dropdown is then
-shown disabled, reflecting the fixed model). Leave `LLM_MODEL` blank to use the provider's
-default. Optional `LLM_MAX_TOKENS` and `LLM_BASE_URL` override the token cap and endpoint.
+When `LLM_MODEL` is set it **pins the model for the `LLM_PROVIDER` provider only**. The model
+dropdown is disabled while that provider is selected. Other providers keep a working dropdown.
+Leave `LLM_MODEL` blank to choose freely in the UI. `LLM_BASE_URL` also applies only to the
+`LLM_PROVIDER` provider. `LLM_MAX_TOKENS` applies to all of them.
 
 **How the providers differ under the hood:** Anthropic uses the native Messages API with
 tool use and prompt caching. OpenRouter and DeepSeek are OpenAI-compatible and are called
@@ -98,6 +113,32 @@ through the `openai` SDK; the same report structure is requested as a forced fun
 > runs ~10–14K tokens — so set `LLM_MAX_TOKENS` (e.g. `32000`) or the response can be truncated.
 > Note the app disables DeepSeek's default *thinking mode* automatically, because thinking mode
 > rejects the forced tool call this app uses to return structured sections.
+
+---
+
+## Deploying to Streamlit
+
+`streamlit_app.py` is a Streamlit front end for the same pipeline (same scraper, providers and
+report). The Flask app is unchanged. To run the Streamlit version locally:
+
+```bash
+streamlit run streamlit_app.py
+```
+
+To deploy it on [Streamlit Community Cloud](https://share.streamlit.io):
+
+1. Push this repo to GitHub.
+2. Sign in at share.streamlit.io with GitHub and click **Create app**.
+3. Pick the repo and branch, and set **Main file path** to `streamlit_app.py`.
+4. Under **Advanced settings → Secrets**, paste your keys, using
+   `.streamlit/secrets.toml.example` as the template. Set `APP_PASSWORD`, otherwise anyone
+   with the URL can spend your API credit.
+5. Click **Deploy**. Later pushes to the branch redeploy automatically.
+
+Notes:
+- Reports are not saved on the server (Streamlit Cloud's disk is temporary). Use the
+  **Download HTML report** button.
+- Never commit `.streamlit/secrets.toml` or `.env`. Both are in `.gitignore`.
 
 ---
 

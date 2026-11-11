@@ -6,7 +6,8 @@ remembered numbers, which is what separates this from a pure-LLM report.
 
 Provider is chosen at run time from the environment (usually the .env file):
 
-    LLM_PROVIDER = anthropic | openrouter | deepseek     (default: anthropic)
+    LLM_PROVIDER = anthropic | openrouter | deepseek     (default: anthropic;
+                   the UI's provider dropdown overrides it per request)
     LLM_MODEL    = <model id>        overrides the provider's default model
     LLM_MAX_TOKENS = <int>          overrides the provider's output-token cap
     LLM_BASE_URL = <url>            overrides the provider's API base URL
@@ -39,23 +40,50 @@ MAX_TOKENS = 32000
 # LLM_MAX_TOKENS overrides it per environment.
 PROVIDER_DEFAULTS = {
     "anthropic": {
+        "label": "Claude (Anthropic)",
         "model": DEFAULT_MODEL,
         "base_url": None,
         "key_env": "ANTHROPIC_API_KEY",
         "max_tokens": 32000,
     },
-    "openrouter": {
-        "model": "anthropic/claude-sonnet-4",
-        "base_url": "https://openrouter.ai/api/v1",
-        "key_env": "OPENROUTER_API_KEY",
-        "max_tokens": 32000,
-    },
     "deepseek": {
+        "label": "DeepSeek",
         "model": "deepseek-v4-pro",
         "base_url": "https://api.deepseek.com",
         "key_env": "DEEPSEEK_API_KEY",
         "max_tokens": 32000,
     },
+    "openrouter": {
+        "label": "OpenRouter",
+        "model": "anthropic/claude-sonnet-4",
+        "base_url": "https://openrouter.ai/api/v1",
+        "key_env": "OPENROUTER_API_KEY",
+        "max_tokens": 32000,
+    },
+}
+
+# Models offered in the UI dropdown, per provider: (model id, label). Any other
+# id can still be typed in via the UI's "Custom model…" option — useful for
+# OpenRouter, which exposes hundreds of models.
+PROVIDER_MODELS = {
+    "anthropic": [
+        ("claude-sonnet-5", "Claude Sonnet 5 (balanced)"),
+        ("claude-opus-4-8", "Claude Opus 4.8 (deepest analysis)"),
+        ("claude-haiku-4-5-20251001", "Claude Haiku 4.5 (fastest)"),
+        ("claude-sonnet-5-5", "Claude Sonnet 5.5"),
+        ("claude-opus-5-5", "Claude Opus 5.5"),
+        ("claude-haiku-5-5", "Claude Haiku 5.5"),
+    ],
+    "deepseek": [
+        ("deepseek-v4-pro", "DeepSeek V4 Pro (deeper)"),
+        ("deepseek-v4-flash", "DeepSeek V4 Flash (faster)"),
+    ],
+    "openrouter": [
+        ("anthropic/claude-sonnet-4", "Claude Sonnet 4"),
+        ("deepseek/deepseek-chat", "DeepSeek Chat"),
+        ("openai/gpt-4o", "GPT-4o"),
+        ("google/gemini-2.5-pro", "Gemini 2.5 Pro"),
+    ],
 }
 
 # The user's own brief. Loaded at call time so edits to it take effect
@@ -78,32 +106,45 @@ class LLMConfig:
     model_fixed: bool  # True when LLM_MODEL pins the model regardless of the UI
 
 
-def resolve_config(requested_model: str | None = None) -> LLMConfig:
-    """
-    Work out which provider/model/key to use from the environment.
+def env_provider() -> str:
+    """The provider named by LLM_PROVIDER in .env (the UI's default choice)."""
+    return (os.environ.get("LLM_PROVIDER") or "anthropic").strip().lower()
 
-    Model precedence: LLM_MODEL (env) wins over everything, so the model can be
-    changed purely in .env. Otherwise, for the native Anthropic provider the UI
-    dropdown selection is honoured; other providers fall back to their default.
+
+def resolve_config(requested_model: str | None = None,
+                   requested_provider: str | None = None) -> LLMConfig:
     """
-    provider = (os.environ.get("LLM_PROVIDER") or "anthropic").strip().lower()
+    Work out which provider/model/key to use.
+
+    Provider: the UI's selection if given, else LLM_PROVIDER from .env, else
+    anthropic.
+
+    Model: LLM_MODEL in .env pins the model, but only for the .env provider
+    (it is a model id for that provider and means nothing to the others).
+    Otherwise the UI's selection is used, falling back to the provider default.
+    LLM_BASE_URL likewise only applies to the .env provider.
+    """
+    default_provider = env_provider()
+    provider = (requested_provider or "").strip().lower() or default_provider
     if provider not in PROVIDER_DEFAULTS:
         raise AnalystError(
-            f"Unknown LLM_PROVIDER '{provider}'. Use one of: "
+            f"Unknown LLM provider '{provider}'. Use one of: "
             + ", ".join(PROVIDER_DEFAULTS)
         )
     defaults = PROVIDER_DEFAULTS[provider]
+    is_env_provider = provider == default_provider
 
-    env_model = (os.environ.get("LLM_MODEL") or "").strip()
+    env_model = (os.environ.get("LLM_MODEL") or "").strip() if is_env_provider else ""
     model_fixed = bool(env_model)
     if env_model:
         model = env_model
-    elif provider == "anthropic" and requested_model:
+    elif requested_model and requested_model.strip():
         model = requested_model.strip()
     else:
         model = defaults["model"]
 
-    base_url = (os.environ.get("LLM_BASE_URL") or "").strip() or defaults["base_url"]
+    env_base = (os.environ.get("LLM_BASE_URL") or "").strip() if is_env_provider else ""
+    base_url = env_base or defaults["base_url"]
 
     key_env = defaults["key_env"]
     api_key = (os.environ.get(key_env) or os.environ.get("LLM_API_KEY") or "").strip()
@@ -120,6 +161,23 @@ def resolve_config(requested_model: str | None = None) -> LLMConfig:
         provider=provider, model=model, base_url=base_url, api_key=api_key,
         key_env=key_env, max_tokens=max_tokens, model_fixed=model_fixed,
     )
+
+
+def list_providers() -> list[dict]:
+    """Everything the UI needs to render the provider + model pickers."""
+    out = []
+    for pid, d in PROVIDER_DEFAULTS.items():
+        cfg = resolve_config(requested_provider=pid)
+        out.append({
+            "id": pid,
+            "label": d["label"],
+            "key_env": cfg.key_env,
+            "api_key_configured": bool(cfg.api_key),
+            "default_model": cfg.model,
+            "model_fixed": cfg.model_fixed,
+            "models": [{"id": m, "label": lbl} for m, lbl in PROVIDER_MODELS.get(pid, [])],
+        })
+    return out
 
 
 # --------------------------------------------------------------------------
@@ -547,9 +605,10 @@ def _finish_report(report_input: dict, usage: dict, stop_reason: str) -> dict:
 
 
 def analyse(company: dict, live: dict, model: str | None = None,
-            api_key: str | None = None, on_progress=None) -> dict:
-    """Run the report through the configured provider and return the report dict."""
-    cfg = resolve_config(model)
+            api_key: str | None = None, on_progress=None,
+            provider: str | None = None) -> dict:
+    """Run the report through the chosen provider and return the report dict."""
+    cfg = resolve_config(model, provider)
     if not (api_key or cfg.api_key):
         raise AnalystError(
             f"No API key configured for provider '{cfg.provider}'. Set {cfg.key_env} "

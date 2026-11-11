@@ -49,12 +49,20 @@
 
     <div class="row-opts">
       <div class="field">
+        <label class="lbl" for="provider">Provider</label>
+        <select id="provider">
+          <option value="anthropic">Claude (Anthropic)</option>
+          <option value="deepseek">DeepSeek</option>
+          <option value="openrouter">OpenRouter</option>
+        </select>
+      </div>
+      <div class="field">
         <label class="lbl" for="model">Model</label>
         <select id="model">
           <option value="claude-sonnet-5">Claude Sonnet 5 (balanced)</option>
-          <option value="claude-opus-4-8">Claude Opus 4.8 (deepest analysis)</option>
-          <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (fastest)</option>
         </select>
+        <input type="text" id="customModel" placeholder="e.g. meta-llama/llama-3.3-70b-instruct"
+               aria-label="Custom model id" hidden style="margin-top:6px">
       </div>
       <p class="hint" id="keyHint"></p>
     </div>
@@ -154,36 +162,83 @@ var form=$("form"), stockEl=$("stock"), goBtn=$("go"), modelEl=$("model"),
     statusTitle=$("statusTitle"), statusDetail=$("statusDetail"), stepsEl=$("steps"),
     reportEl=$("report"), tabbar=$("tabbar"), panels=$("panels");
 
-/* ---------------- health ---------------- */
-fetch("/api/health").then(function(r){return r.json();}).then(function(h){
-  var provider = h.provider || "anthropic";
-  var keyEnv = h.key_env || "API key";
-  if(!h.api_key_configured){
-    $("keyHint").innerHTML = "&#9888; No <code>"+esc(keyEnv)+"</code> configured on the server for the "+
-                             "<code>"+esc(provider)+"</code> provider — see <code>README.md</code>. "+
+/* ---------------- provider / model ---------------- */
+var providerEl=$("provider"), customModelEl=$("customModel");
+var PROVIDERS={}, CUSTOM="__custom__";
+
+function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+
+function currentProvider(){ return PROVIDERS[providerEl.value]; }
+
+function selectedModel(){
+  if(modelEl.value===CUSTOM) return customModelEl.value.trim();
+  return modelEl.value;
+}
+
+function renderKeyHint(){
+  var p=currentProvider(); if(!p) return;
+  if(!p.api_key_configured){
+    $("keyHint").innerHTML = "&#9888; No <code>"+esc(p.key_env)+"</code> configured on the server for "+
+                             esc(p.label)+" — add it to <code>.env</code> and restart (see <code>README.md</code>). "+
                              "Scraping works; analysis will fail.";
   }else{
-    $("keyHint").innerHTML = "Provider <code>"+esc(provider)+"</code> · model <code>"+esc(h.model||"")+"</code>. "+
+    $("keyHint").innerHTML = esc(p.label)+" · model <code>"+esc(selectedModel()||p.default_model)+"</code>. "+
                              "Reports are saved to <code>outputs/</code>.";
   }
-  // Reflect the server's effective model in the dropdown. LLM_MODEL / a non-
-  // Anthropic provider fixes the model server-side, so show it and disable the
-  // picker to avoid implying a choice the backend would ignore.
-  if(h.model){
-    var exists=false;
-    Array.prototype.forEach.call(modelEl.options,function(o){ if(o.value===h.model) exists=true; });
-    if(!exists){
-      var o=document.createElement("option");
-      o.value=h.model;
-      o.textContent=h.model+(provider!=="anthropic"?(" ("+provider+")"):"");
-      modelEl.insertBefore(o, modelEl.firstChild);
-    }
-    modelEl.value=h.model;
-  }
-  if(provider!=="anthropic" || h.model_fixed){
-    modelEl.disabled=true;
-    modelEl.title="Model is fixed by the server configuration (.env). Edit LLM_PROVIDER / LLM_MODEL to change it.";
-  }
+}
+
+function renderModels(preferred){
+  var p=currentProvider(); if(!p) return;
+  modelEl.innerHTML="";
+  var list=p.models.slice(), want=preferred||p.default_model, found=false;
+  if(!list.some(function(m){return m.id===p.default_model;}))
+    list.unshift({id:p.default_model, label:p.default_model+" (server default)"});
+  list.forEach(function(m){
+    var o=document.createElement("option"); o.value=m.id; o.textContent=m.label;
+    modelEl.appendChild(o); if(m.id===want) found=true;
+  });
+  var c=document.createElement("option"); c.value=CUSTOM; c.textContent="Custom model id…";
+  modelEl.appendChild(c);
+  if(found){ modelEl.value=want; customModelEl.value=""; }
+  else if(preferred){ modelEl.value=CUSTOM; customModelEl.value=preferred; }
+  else modelEl.value=p.default_model;
+
+  // LLM_MODEL in .env pins the model for its provider; reflect that honestly.
+  modelEl.disabled=!!p.model_fixed;
+  modelEl.title=p.model_fixed?"Model is fixed by LLM_MODEL in .env for this provider.":"";
+  customModelEl.hidden=(modelEl.value!==CUSTOM) || !!p.model_fixed;
+  renderKeyHint();
+}
+
+providerEl.addEventListener("change",function(){
+  lsSet("eq.provider",providerEl.value);
+  renderModels(lsGet("eq.model."+providerEl.value));
+});
+modelEl.addEventListener("change",function(){
+  customModelEl.hidden=modelEl.value!==CUSTOM;
+  if(modelEl.value===CUSTOM) customModelEl.focus();
+  else lsSet("eq.model."+providerEl.value, modelEl.value);
+  renderKeyHint();
+});
+customModelEl.addEventListener("input",function(){
+  if(customModelEl.value.trim()) lsSet("eq.model."+providerEl.value, customModelEl.value.trim());
+  renderKeyHint();
+});
+
+/* ---------------- health ---------------- */
+fetch("/api/health").then(function(r){return r.json();}).then(function(h){
+  if(!h.providers || !h.providers.length) return;
+  providerEl.innerHTML="";
+  h.providers.forEach(function(p){
+    PROVIDERS[p.id]=p;
+    var o=document.createElement("option"); o.value=p.id;
+    o.textContent=p.label+(p.api_key_configured?"":" — no key");
+    providerEl.appendChild(o);
+  });
+  var saved=lsGet("eq.provider");
+  providerEl.value = PROVIDERS[saved] ? saved : (PROVIDERS[h.provider] ? h.provider : h.providers[0].id);
+  renderModels(lsGet("eq.model."+providerEl.value));
 }).catch(function(){});
 
 /* ---------------- autocomplete ---------------- */
@@ -404,6 +459,9 @@ form.addEventListener("submit",function(ev){
   closeSuggest();
   var stock=stockEl.value.trim();
   if(!stock) return;
+  if(modelEl.value===CUSTOM && !customModelEl.value.trim()){
+    customModelEl.focus(); return;
+  }
 
   reportEl.hidden=true;
   setBusy(true); resetSteps();
@@ -414,9 +472,11 @@ form.addEventListener("submit",function(ev){
   fetch("/api/analyze",{
     method:"POST",
     headers:{"content-type":"application/json"},
-    body:JSON.stringify({stock:stock, model:modelEl.value})
+    body:JSON.stringify({stock:stock, provider:providerEl.value, model:selectedModel()})
   }).then(function(resp){
-    if(!resp.ok) throw new Error("Backend returned HTTP "+resp.status);
+    if(!resp.ok) return resp.json().catch(function(){ return {}; }).then(function(j){
+      throw new Error(j.error || ("Backend returned HTTP "+resp.status));
+    });
     var reader=resp.body.getReader(), dec=new TextDecoder(), buf="", finalPayload=null, errMsg=null;
 
     function handle(evtName,data){
