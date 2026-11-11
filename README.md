@@ -116,6 +116,32 @@ through the `openai` SDK; the same report structure is requested as a forced fun
 
 ---
 
+## Deploying to Streamlit
+
+`streamlit_app.py` is a Streamlit front end for the same pipeline (same scraper, providers and
+report). The Flask app is unchanged. To run the Streamlit version locally:
+
+```bash
+streamlit run streamlit_app.py
+```
+
+To deploy it on [Streamlit Community Cloud](https://share.streamlit.io):
+
+1. Push this repo to GitHub.
+2. Sign in at share.streamlit.io with GitHub and click **Create app**.
+3. Pick the repo and branch, and set **Main file path** to `streamlit_app.py`.
+4. Under **Advanced settings → Secrets**, paste your keys, using
+   `.streamlit/secrets.toml.example` as the template. Set `APP_PASSWORD`, otherwise anyone
+   with the URL can spend your API credit.
+5. Click **Deploy**. Later pushes to the branch redeploy automatically.
+
+Notes:
+- Reports are not saved on the server (Streamlit Cloud's disk is temporary). Use the
+  **Download HTML report** button.
+- Never commit `.streamlit/secrets.toml` or `.env`. Both are in `.gitignore`.
+
+---
+
 ## How it works
 
 ```
