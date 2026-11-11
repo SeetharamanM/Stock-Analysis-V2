@@ -4,8 +4,8 @@ A local web app that takes a stock name, pulls **live fundamentals** from Screen
 cross-checks the price against Yahoo Finance, and has an LLM write a seven-section equity
 research report — saved as **its own standalone HTML file** in `outputs/`.
 
-The LLM provider is switchable in `.env` — **Anthropic (Claude)**, **OpenRouter**, or
-**DeepSeek** — with no code changes. See [Choosing a provider](#choosing-a-provider).
+The LLM provider — **Anthropic (Claude)**, **DeepSeek** or **OpenRouter** — and its model are
+picked from dropdowns in the web UI. See [Choosing a provider](#choosing-a-provider).
 
 Report structure follows `Stock Analysis Prompt.txt`, which the backend reads at run time.
 Edit that file and the reports change — no code changes needed.
@@ -58,8 +58,22 @@ Then open <http://127.0.0.1:5057>.
 
 ## Choosing a provider
 
-The provider is selected entirely in `.env` — **no code changes**. Set `LLM_PROVIDER` and
-the matching API key, then restart the server.
+Pick the **Provider** and **Model** from the dropdowns above the stock search. Each provider
+needs its own API key in `.env`. Add the keys for every provider you want to use, then
+restart the server. A provider with no key shows as "— no key" in the dropdown.
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+DEEPSEEK_API_KEY=sk-...
+OPENROUTER_API_KEY=sk-or-...
+```
+
+The model dropdown lists common models for the chosen provider. Pick **Custom model id…** to
+type any other id, for example any model on OpenRouter such as
+`meta-llama/llama-3.3-70b-instruct`. The browser remembers your last provider and the last
+model you used for each provider.
+
+`LLM_PROVIDER` in `.env` only sets which provider is selected the first time the page opens.
 
 | `LLM_PROVIDER` | Key variable | Default model | Base URL |
 |---|---|---|---|
@@ -85,9 +99,10 @@ DEEPSEEK_API_KEY=sk-your-deepseek-key-here
 LLM_MODEL=deepseek-v4-pro   # or deepseek-v4-flash
 ```
 
-When `LLM_MODEL` is set it **overrides the model dropdown** in the UI (the dropdown is then
-shown disabled, reflecting the fixed model). Leave `LLM_MODEL` blank to use the provider's
-default. Optional `LLM_MAX_TOKENS` and `LLM_BASE_URL` override the token cap and endpoint.
+When `LLM_MODEL` is set it **pins the model for the `LLM_PROVIDER` provider only**. The model
+dropdown is disabled while that provider is selected. Other providers keep a working dropdown.
+Leave `LLM_MODEL` blank to choose freely in the UI. `LLM_BASE_URL` also applies only to the
+`LLM_PROVIDER` provider. `LLM_MAX_TOKENS` applies to all of them.
 
 **How the providers differ under the hood:** Anthropic uses the native Messages API with
 tool use and prompt caching. OpenRouter and DeepSeek are OpenAI-compatible and are called
